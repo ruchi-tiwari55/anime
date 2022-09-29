@@ -1,6 +1,7 @@
 import { Provider } from "react-redux";
 import { store, persistor } from "./store";
 import { PersistGate } from "redux-persist/integration/react";
+import "antd/dist/antd.min.css";
 import Home from "./pages";
 
 function App() {
