@@ -1,26 +1,36 @@
-import { Card, Input, Select, Space } from "antd";
-import { useEffect, useState } from "react";
+import { Input, Select, Space, Spin } from "antd";
+import { useEffect, useRef, useState } from "react";
+import AnimeCard from "../components/AnimeCard";
+import { useDispatch, useSelector } from "react-redux";
+import { addToWishlist, removeFromWishlist, setAnimes } from "../actions/anime";
 
 function Home() {
-  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [filteredItems, setFilteredItems] = useState([]);
   const [genresTypes, setGenresTypes] = useState([]);
+  const draggedCard = useRef();
+  const dispatch = useDispatch();
+  const animes = useSelector((state) => state.anime.animes);
+  const wishlist = useSelector((state) => state.anime.wishlist);
 
   useEffect(() => {
+    setLoading(true);
     fetch("https://api.jikan.moe/v4/anime")
       .then((res) => {
         return res.json();
       })
       .then((responseData) => {
-        setItems(responseData.data);
-        let genresObj = responseData.data.reduce((obj, item) => {
+        let data = responseData.data;
+        dispatch(setAnimes(data));
+        let genresObj = data.reduce((obj, item) => {
           item.genres.map((gen) => {
             obj[gen.name] = 1;
           });
           return obj;
         }, {});
         setGenresTypes(Object.keys(genresObj));
-        setFilteredItems(responseData.data);
+        setFilteredItems(data);
+        setLoading(false);
       })
       .catch((error) => {
         console.log(error);
@@ -29,18 +39,18 @@ function Home() {
 
   const onSearch = (value) => {
     value = value.trim();
-    let filteredItems = items.filter((item) => {
-      return item.title.includes(value);
+    let filteredItems = animes.filter((item) => {
+      return item.title.toLowerCase().includes(value.toLowerCase());
     });
     setFilteredItems(filteredItems);
   };
 
   const handleChange = (selectedValues) => {
     if (selectedValues.length == 0) {
-      setFilteredItems(items);
+      setFilteredItems(animes);
       return;
     }
-    let filteredItems = items.filter((item) => {
+    let filteredItems = animes.filter((item) => {
       let includeThisItem = false;
       item.genres.map((gen) => {
         if (selectedValues.includes(gen.name)) {
@@ -50,6 +60,19 @@ function Home() {
       return includeThisItem;
     });
     setFilteredItems(filteredItems);
+  };
+
+  const handleOnDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = () => {
+    let isExist = wishlist.find(
+      (item) => item.mal_id === draggedCard.current.mal_id
+    );
+    if (!isExist) {
+      dispatch(addToWishlist(draggedCard.current));
+    }
   };
 
   return (
@@ -95,35 +118,61 @@ function Home() {
           </Space>
         </div>
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "space-around",
-        }}
-      >
-        {filteredItems.map((item, index) => {
-          return (
-            <Card
-              key={index}
-              hoverable
-              style={{
-                width: 240,
-                height: 350,
-                margin: 10,
-              }}
-              cover={
-                <img
-                  alt="example"
-                  src={item.images.jpg.image_url}
-                  style={{ height: 260 }}
+      <div style={{ display: "flex" }}>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            flex: 1,
+            justifyContent: "space-around",
+          }}
+        >
+          {filteredItems.length > 0 ? (
+            filteredItems.map((item, index) => {
+              return (
+                <AnimeCard
+                  data={item}
+                  key={index}
+                  draggable
+                  onDragStart={() => {
+                    draggedCard.current = item;
+                  }}
                 />
-              }
-            >
-              <Card.Meta title={item.title} description={item.rating} />
-            </Card>
-          );
-        })}
+              );
+            })
+          ) : loading ? (
+            <Spin />
+          ) : (
+            <div>No matched items to display</div>
+          )}
+        </div>
+        <div
+          style={{
+            backgroundColor: "#fff",
+            padding: 10,
+            width: 280,
+            margin: "0px 15px",
+          }}
+          onDragOver={handleOnDragOver}
+          onDrop={(e) => handleDrop(e)}
+        >
+          <h2 style={{ textAlign: "center" }}>Your Wishlist</h2>
+          <div style={{ textAlign: "center", color: "grey" }}>
+            drag and drop here
+          </div>
+          {wishlist.map((item, index) => {
+            return (
+              <AnimeCard
+                onCloseClick={() => {
+                  dispatch(removeFromWishlist(item));
+                }}
+                showClose={true}
+                key={index}
+                data={item}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );
